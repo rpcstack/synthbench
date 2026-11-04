@@ -5,5 +5,5 @@ cd "$(dirname "$0")/.."
 for dir in config/*/; do
   name=$(basename "$dir")
   python3 scripts/gen-deploy.py "config/$name/topology.json" \
-    --loadgen-dir "config/$name" --out "deploy/$name"
+    --out "deploy/$name"
 done

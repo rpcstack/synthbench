@@ -40,17 +40,19 @@ class GenDeploy(unittest.TestCase):
         )
 
     def test_compose_one_service_per_replica(self):
-        c = gd.compose(topo(Front_End=1, leaf=2), "config/t.json", "config/lg")
+        c = gd.compose(topo(Front_End=1, leaf=2), "config/t")
         s = c["services"]
         self.assertEqual(
             set(s),
             {"frontend", "sb-local-front-end-service-1", "sb-local-leaf-service-1",
-             "sb-local-leaf-service-2", "loadgen", "probe"},
+             "sb-local-leaf-service-2", "client-bench"},
         )
         self.assertEqual(s["sb-local-leaf-service-2"]["environment"]["SERVICE_ID"], "leaf")
         self.assertEqual(s["frontend"]["environment"]["DOCKER_COMPOSE_PROJECT_NAME"], "sb")
         self.assertEqual(s["frontend"]["deploy"]["resources"]["limits"]["cpus"], "2.0")
         self.assertEqual(len(s["frontend"]["depends_on"]), 3)
+        self.assertEqual(s["frontend"]["image"], "rpcstack-synthbench:${MODE:-baseline}")
+        self.assertEqual(s["sb-local-leaf-service-1"]["command"], ["child"])
 
     def test_k8s_service_per_replica_and_config(self):
         docs = gd.k8s_docs(topo(Front_End=1, leaf=2), registry="localhost:5001", tag="baseline")
@@ -62,10 +64,12 @@ class GenDeploy(unittest.TestCase):
         )
         imgs = {d["spec"]["template"]["spec"]["containers"][0]["image"]
                 for d in docs if d["kind"] == "Deployment"}
-        self.assertEqual(imgs, {"localhost:5001/synthbench-child:baseline",
-                                "localhost:5001/synthbench-frontend:baseline"})
+        self.assertEqual(imgs, {"localhost:5001/rpcstack-synthbench:baseline"})
+        roles = sorted(d["spec"]["template"]["spec"]["containers"][0]["args"][0]
+                       for d in docs if d["kind"] == "Deployment")
+        self.assertEqual(roles, ["child", "child", "child", "frontend"])
         cm = next(d for d in docs if d["kind"] == "ConfigMap")
-        self.assertEqual(json.loads(cm["data"]["config.json"])["call_graph"]["services"][1]["id"], "leaf")
+        self.assertEqual(json.loads(cm["data"]["topology.json"])["call_graph"]["services"][1]["id"], "leaf")
 
     def test_loadgen_addr_rewritten_for_k8s(self):
         job = gd.k8s_loadgen_job({"gen_config.json": {"Addr": "http://x:1", "Rps": [1]}})
@@ -92,8 +96,8 @@ class GenDeploy(unittest.TestCase):
         for name in sorted(os.listdir(os.path.join(ROOT, "config"))):
             subprocess.check_call([
                 sys.executable, os.path.join(ROOT, "scripts/gen-deploy.py"),
-                f"config/{name}/topology.json", "--loadgen-dir", f"config/{name}",
-                "--out", f"deploy/{name}", "--registry", gd.DEFAULT_REGISTRY, "--check",
+                f"config/{name}/topology.json",
+                "--out", f"deploy/{name}", "--check",
             ], cwd=ROOT)
 
 

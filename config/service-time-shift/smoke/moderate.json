@@ -12,11 +12,11 @@
     100
   ],
   "Gap": "exp",
-  "WarmupSecs": 2,
-  "DurationSecs": 10,
+  "WarmupSecs": 3,
+  "DurationSecs": 20,
   "Addr": "http://frontend:8000",
   "Timeouts_ms": [
-    1000,
-    1000
+    2000,
+    2000
   ]
 }

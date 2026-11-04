@@ -6,7 +6,7 @@ metadata:
   labels:
     app.kubernetes.io/part-of: "synthbench"
 data:
-  config.json: "{\n  \"call_graph\": {\n    \"entry_points\": {\n      \"a\": [\n        {\n          \"MS_56394::GqI6UW1mU4\": 1.0\n        }\n      ]\n    },\n    \"services\": [\n      {\n        \"id\": \"MS_56394\",\n        \"replicas\": 1,\n        \"methods\": [\n          {\n            \"name\": \"GqI6UW1mU4\",\n            \"latency_distribution\": {\n              \"Exponential\": {\n                \"mean\": 10000\n              }\n            },\n            \"busy_spin_ratio\": 0.05,\n            \"call_sequence\": [\n              {\n                \"MS_37691::y_DKOh-Gts\": 1.0\n              },\n              {\n                \"MS_37691::ykccIz2fkK\": 1.0\n              },\n              {\n                \"MS_73106::Sbvx4Hgp0r\": 0.003\n              }\n            ]\n          }\n        ]\n      },\n      {\n        \"id\": \"MS_37691\",\n        \"replicas\": 1,\n        \"methods\": [\n          {\n            \"name\": \"y_DKOh-Gts\",\n            \"latency_distribution\": {\n              \"Exponential\": {\n                \"mean\": 10000\n              }\n            },\n            \"busy_spin_ratio\": 0.1,\n            \"call_sequence\": []\n          },\n          {\n            \"name\": \"ykccIz2fkK\",\n            \"latency_distribution\": {\n              \"Exponential\": {\n                \"mean\": 10000\n              }\n            },\n            \"busy_spin_ratio\": 0.1,\n            \"call_sequence\": []\n          }\n        ]\n      },\n      {\n        \"id\": \"MS_73106\",\n        \"replicas\": 1,\n        \"methods\": [\n          {\n            \"name\": \"Sbvx4Hgp0r\",\n            \"latency_distribution\": {\n              \"Exponential\": {\n                \"mean\": 10000\n              }\n            },\n            \"busy_spin_ratio\": 0.05,\n            \"call_sequence\": [\n              {\n                \"MS_11639::Lzgm2aJgrn\": 1.0\n              },\n              {\n                \"MS_11639::86W_zoVB43\": 1.0\n              },\n              {\n                \"MS_11639::iZVf-3vjSt\": 0.833\n              }\n            ]\n          }\n        ]\n      },\n      {\n        \"id\": \"MS_11639\",\n        \"replicas\": 1,\n        \"methods\": [\n          {\n            \"name\": \"Lzgm2aJgrn\",\n            \"latency_distribution\": {\n              \"Exponential\": {\n                \"mean\": 1\n              }\n            },\n            \"busy_spin_ratio\": 0.1,\n            \"call_sequence\": []\n          },\n          {\n            \"name\": \"86W_zoVB43\",\n            \"latency_distribution\": {\n              \"Exponential\": {\n                \"mean\": 10000\n              }\n            },\n            \"busy_spin_ratio\": 0.1,\n            \"call_sequence\": []\n          },\n          {\n            \"name\": \"iZVf-3vjSt\",\n            \"latency_distribution\": {\n              \"Exponential\": {\n                \"mean\": 10000\n              }\n            },\n            \"busy_spin_ratio\": 0.1,\n            \"call_sequence\": []\n          }\n        ]\n      }\n    ],\n    \"child_cpus_per_replica\": 1.0\n  }\n}\n"
+  topology.json: "{\n  \"call_graph\": {\n    \"entry_points\": {\n      \"a\": [\n        {\n          \"MS_56394::GqI6UW1mU4\": 1.0\n        }\n      ]\n    },\n    \"services\": [\n      {\n        \"id\": \"MS_56394\",\n        \"replicas\": 1,\n        \"methods\": [\n          {\n            \"name\": \"GqI6UW1mU4\",\n            \"latency_distribution\": {\n              \"Exponential\": {\n                \"mean\": 10000\n              }\n            },\n            \"busy_spin_ratio\": 0.05,\n            \"call_sequence\": [\n              {\n                \"MS_37691::y_DKOh-Gts\": 1.0\n              },\n              {\n                \"MS_37691::ykccIz2fkK\": 1.0\n              },\n              {\n                \"MS_73106::Sbvx4Hgp0r\": 0.003\n              }\n            ]\n          }\n        ]\n      },\n      {\n        \"id\": \"MS_37691\",\n        \"replicas\": 1,\n        \"methods\": [\n          {\n            \"name\": \"y_DKOh-Gts\",\n            \"latency_distribution\": {\n              \"Exponential\": {\n                \"mean\": 10000\n              }\n            },\n            \"busy_spin_ratio\": 0.1,\n            \"call_sequence\": []\n          },\n          {\n            \"name\": \"ykccIz2fkK\",\n            \"latency_distribution\": {\n              \"Exponential\": {\n                \"mean\": 10000\n              }\n            },\n            \"busy_spin_ratio\": 0.1,\n            \"call_sequence\": []\n          }\n        ]\n      },\n      {\n        \"id\": \"MS_73106\",\n        \"replicas\": 1,\n        \"methods\": [\n          {\n            \"name\": \"Sbvx4Hgp0r\",\n            \"latency_distribution\": {\n              \"Exponential\": {\n                \"mean\": 10000\n              }\n            },\n            \"busy_spin_ratio\": 0.05,\n            \"call_sequence\": [\n              {\n                \"MS_11639::Lzgm2aJgrn\": 1.0\n              },\n              {\n                \"MS_11639::86W_zoVB43\": 1.0\n              },\n              {\n                \"MS_11639::iZVf-3vjSt\": 0.833\n              }\n            ]\n          }\n        ]\n      },\n      {\n        \"id\": \"MS_11639\",\n        \"replicas\": 1,\n        \"methods\": [\n          {\n            \"name\": \"Lzgm2aJgrn\",\n            \"latency_distribution\": {\n              \"Exponential\": {\n                \"mean\": 1\n              }\n            },\n            \"busy_spin_ratio\": 0.1,\n            \"call_sequence\": []\n          },\n          {\n            \"name\": \"86W_zoVB43\",\n            \"latency_distribution\": {\n              \"Exponential\": {\n                \"mean\": 10000\n              }\n            },\n            \"busy_spin_ratio\": 0.1,\n            \"call_sequence\": []\n          },\n          {\n            \"name\": \"iZVf-3vjSt\",\n            \"latency_distribution\": {\n              \"Exponential\": {\n                \"mean\": 10000\n              }\n            },\n            \"busy_spin_ratio\": 0.1,\n            \"call_sequence\": []\n          }\n        ]\n      }\n    ],\n    \"child_cpus_per_replica\": 1.0\n  }\n}\n"
 ---
 apiVersion: "apps/v1"
 kind: "Deployment"
@@ -26,12 +26,12 @@ spec:
         app.kubernetes.io/name: "sb-local-ms-56394-service-1"
     spec:
       containers:
-        - name: "app"
-          image: "localhost:5001/synthbench-child:masa"
+        - name: "child"
+          image: "localhost:5001/rpcstack-synthbench:baseline"
           imagePullPolicy: "IfNotPresent"
+          args:
+            - "child"
           env:
-            - name: "BINARY_NAME"
-              value: "synthbench_child"
             - name: "LOG_LEVEL"
               value: "info"
             - name: "DOCKER_COMPOSE_PROJECT_NAME"
@@ -52,8 +52,8 @@ spec:
               cpu: "100m"
           volumeMounts:
             - name: "config"
-              mountPath: "/usr/config.json"
-              subPath: "config.json"
+              mountPath: "/etc/synthbench/topology.json"
+              subPath: "topology.json"
       volumes:
         - name: "config"
           configMap:
@@ -91,12 +91,12 @@ spec:
         app.kubernetes.io/name: "sb-local-ms-37691-service-1"
     spec:
       containers:
-        - name: "app"
-          image: "localhost:5001/synthbench-child:masa"
+        - name: "child"
+          image: "localhost:5001/rpcstack-synthbench:baseline"
           imagePullPolicy: "IfNotPresent"
+          args:
+            - "child"
           env:
-            - name: "BINARY_NAME"
-              value: "synthbench_child"
             - name: "LOG_LEVEL"
               value: "info"
             - name: "DOCKER_COMPOSE_PROJECT_NAME"
@@ -117,8 +117,8 @@ spec:
               cpu: "100m"
           volumeMounts:
             - name: "config"
-              mountPath: "/usr/config.json"
-              subPath: "config.json"
+              mountPath: "/etc/synthbench/topology.json"
+              subPath: "topology.json"
       volumes:
         - name: "config"
           configMap:
@@ -156,12 +156,12 @@ spec:
         app.kubernetes.io/name: "sb-local-ms-73106-service-1"
     spec:
       containers:
-        - name: "app"
-          image: "localhost:5001/synthbench-child:masa"
+        - name: "child"
+          image: "localhost:5001/rpcstack-synthbench:baseline"
           imagePullPolicy: "IfNotPresent"
+          args:
+            - "child"
           env:
-            - name: "BINARY_NAME"
-              value: "synthbench_child"
             - name: "LOG_LEVEL"
               value: "info"
             - name: "DOCKER_COMPOSE_PROJECT_NAME"
@@ -182,8 +182,8 @@ spec:
               cpu: "100m"
           volumeMounts:
             - name: "config"
-              mountPath: "/usr/config.json"
-              subPath: "config.json"
+              mountPath: "/etc/synthbench/topology.json"
+              subPath: "topology.json"
       volumes:
         - name: "config"
           configMap:
@@ -221,12 +221,12 @@ spec:
         app.kubernetes.io/name: "sb-local-ms-11639-service-1"
     spec:
       containers:
-        - name: "app"
-          image: "localhost:5001/synthbench-child:masa"
+        - name: "child"
+          image: "localhost:5001/rpcstack-synthbench:baseline"
           imagePullPolicy: "IfNotPresent"
+          args:
+            - "child"
           env:
-            - name: "BINARY_NAME"
-              value: "synthbench_child"
             - name: "LOG_LEVEL"
               value: "info"
             - name: "DOCKER_COMPOSE_PROJECT_NAME"
@@ -247,8 +247,8 @@ spec:
               cpu: "100m"
           volumeMounts:
             - name: "config"
-              mountPath: "/usr/config.json"
-              subPath: "config.json"
+              mountPath: "/etc/synthbench/topology.json"
+              subPath: "topology.json"
       volumes:
         - name: "config"
           configMap:
@@ -286,12 +286,12 @@ spec:
         app.kubernetes.io/name: "frontend"
     spec:
       containers:
-        - name: "app"
-          image: "localhost:5001/synthbench-frontend:masa"
+        - name: "frontend"
+          image: "localhost:5001/rpcstack-synthbench:baseline"
           imagePullPolicy: "IfNotPresent"
+          args:
+            - "frontend"
           env:
-            - name: "BINARY_NAME"
-              value: "synthbench_frontend"
             - name: "LOG_LEVEL"
               value: "info"
             - name: "DOCKER_COMPOSE_PROJECT_NAME"
@@ -310,8 +310,8 @@ spec:
               cpu: "100m"
           volumeMounts:
             - name: "config"
-              mountPath: "/usr/config.json"
-              subPath: "config.json"
+              mountPath: "/etc/synthbench/topology.json"
+              subPath: "topology.json"
       volumes:
         - name: "config"
           configMap:

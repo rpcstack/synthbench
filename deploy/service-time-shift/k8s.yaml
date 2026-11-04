@@ -6,7 +6,7 @@ metadata:
   labels:
     app.kubernetes.io/part-of: "synthbench"
 data:
-  config.json: "{\n  \"call_graph\": {\n    \"entry_points\": {\n      \"a\": [\n        {\n          \"shared::a\": 1.0\n        }\n      ],\n      \"b\": [\n        {\n          \"shared::b\": 1.0\n        }\n      ]\n    },\n    \"services\": [\n      {\n        \"id\": \"shared\",\n        \"replicas\": 1,\n        \"methods\": [\n          {\n            \"name\": \"a\",\n            \"latency_distribution\": {\n              \"Normal\": {\n                \"mean\": 900,\n                \"std\": 90\n              }\n            },\n            \"busy_spin_ratio\": 1.0,\n            \"call_sequence\": [\n              {\n                \"leaf-a::run\": 1.0\n              }\n            ]\n          },\n          {\n            \"name\": \"b\",\n            \"latency_distribution\": {\n              \"Normal\": {\n                \"mean\": 900,\n                \"std\": 90\n              }\n            },\n            \"busy_spin_ratio\": 1.0,\n            \"call_sequence\": [\n              {\n                \"leaf-b::run\": 1.0\n              }\n            ]\n          }\n        ]\n      },\n      {\n        \"id\": \"leaf-a\",\n        \"replicas\": 1,\n        \"methods\": [\n          {\n            \"name\": \"run\",\n            \"latency_distribution\": {\n              \"ShiftedNormal\": {\n                \"after_secs\": 45,\n                \"before_mean\": 5000,\n                \"before_std\": 500,\n                \"after_mean\": 22000,\n                \"after_std\": 1500\n              }\n            },\n            \"busy_spin_ratio\": 0.05,\n            \"call_sequence\": []\n          }\n        ]\n      },\n      {\n        \"id\": \"leaf-b\",\n        \"replicas\": 1,\n        \"methods\": [\n          {\n            \"name\": \"run\",\n            \"latency_distribution\": {\n              \"Exponential\": {\n                \"mean\": 5000\n              }\n            },\n            \"busy_spin_ratio\": 0.05,\n            \"call_sequence\": []\n          }\n        ]\n      }\n    ],\n    \"child_cpus_per_replica\": 1.0\n  }\n}\n"
+  topology.json: "{\n  \"call_graph\": {\n    \"entry_points\": {\n      \"a\": [\n        {\n          \"shared::a\": 1.0\n        }\n      ],\n      \"b\": [\n        {\n          \"shared::b\": 1.0\n        }\n      ]\n    },\n    \"services\": [\n      {\n        \"id\": \"shared\",\n        \"replicas\": 1,\n        \"methods\": [\n          {\n            \"name\": \"a\",\n            \"latency_distribution\": {\n              \"Normal\": {\n                \"mean\": 900,\n                \"std\": 90\n              }\n            },\n            \"busy_spin_ratio\": 1.0,\n            \"call_sequence\": [\n              {\n                \"leaf-a::run\": 1.0\n              }\n            ]\n          },\n          {\n            \"name\": \"b\",\n            \"latency_distribution\": {\n              \"Normal\": {\n                \"mean\": 900,\n                \"std\": 90\n              }\n            },\n            \"busy_spin_ratio\": 1.0,\n            \"call_sequence\": [\n              {\n                \"leaf-b::run\": 1.0\n              }\n            ]\n          }\n        ]\n      },\n      {\n        \"id\": \"leaf-a\",\n        \"replicas\": 1,\n        \"methods\": [\n          {\n            \"name\": \"run\",\n            \"latency_distribution\": {\n              \"ShiftedNormal\": {\n                \"after_secs\": 45,\n                \"before_mean\": 5000,\n                \"before_std\": 500,\n                \"after_mean\": 22000,\n                \"after_std\": 1500\n              }\n            },\n            \"busy_spin_ratio\": 0.05,\n            \"call_sequence\": []\n          }\n        ]\n      },\n      {\n        \"id\": \"leaf-b\",\n        \"replicas\": 1,\n        \"methods\": [\n          {\n            \"name\": \"run\",\n            \"latency_distribution\": {\n              \"Exponential\": {\n                \"mean\": 5000\n              }\n            },\n            \"busy_spin_ratio\": 0.05,\n            \"call_sequence\": []\n          }\n        ]\n      }\n    ],\n    \"child_cpus_per_replica\": 1.0\n  }\n}\n"
 ---
 apiVersion: "apps/v1"
 kind: "Deployment"
@@ -26,12 +26,12 @@ spec:
         app.kubernetes.io/name: "sb-local-shared-service-1"
     spec:
       containers:
-        - name: "app"
-          image: "localhost:5001/synthbench-child:masa"
+        - name: "child"
+          image: "localhost:5001/rpcstack-synthbench:baseline"
           imagePullPolicy: "IfNotPresent"
+          args:
+            - "child"
           env:
-            - name: "BINARY_NAME"
-              value: "synthbench_child"
             - name: "LOG_LEVEL"
               value: "info"
             - name: "DOCKER_COMPOSE_PROJECT_NAME"
@@ -52,8 +52,8 @@ spec:
               cpu: "100m"
           volumeMounts:
             - name: "config"
-              mountPath: "/usr/config.json"
-              subPath: "config.json"
+              mountPath: "/etc/synthbench/topology.json"
+              subPath: "topology.json"
       volumes:
         - name: "config"
           configMap:
@@ -91,12 +91,12 @@ spec:
         app.kubernetes.io/name: "sb-local-leaf-a-service-1"
     spec:
       containers:
-        - name: "app"
-          image: "localhost:5001/synthbench-child:masa"
+        - name: "child"
+          image: "localhost:5001/rpcstack-synthbench:baseline"
           imagePullPolicy: "IfNotPresent"
+          args:
+            - "child"
           env:
-            - name: "BINARY_NAME"
-              value: "synthbench_child"
             - name: "LOG_LEVEL"
               value: "info"
             - name: "DOCKER_COMPOSE_PROJECT_NAME"
@@ -117,8 +117,8 @@ spec:
               cpu: "100m"
           volumeMounts:
             - name: "config"
-              mountPath: "/usr/config.json"
-              subPath: "config.json"
+              mountPath: "/etc/synthbench/topology.json"
+              subPath: "topology.json"
       volumes:
         - name: "config"
           configMap:
@@ -156,12 +156,12 @@ spec:
         app.kubernetes.io/name: "sb-local-leaf-b-service-1"
     spec:
       containers:
-        - name: "app"
-          image: "localhost:5001/synthbench-child:masa"
+        - name: "child"
+          image: "localhost:5001/rpcstack-synthbench:baseline"
           imagePullPolicy: "IfNotPresent"
+          args:
+            - "child"
           env:
-            - name: "BINARY_NAME"
-              value: "synthbench_child"
             - name: "LOG_LEVEL"
               value: "info"
             - name: "DOCKER_COMPOSE_PROJECT_NAME"
@@ -182,8 +182,8 @@ spec:
               cpu: "100m"
           volumeMounts:
             - name: "config"
-              mountPath: "/usr/config.json"
-              subPath: "config.json"
+              mountPath: "/etc/synthbench/topology.json"
+              subPath: "topology.json"
       volumes:
         - name: "config"
           configMap:
@@ -221,12 +221,12 @@ spec:
         app.kubernetes.io/name: "frontend"
     spec:
       containers:
-        - name: "app"
-          image: "localhost:5001/synthbench-frontend:masa"
+        - name: "frontend"
+          image: "localhost:5001/rpcstack-synthbench:baseline"
           imagePullPolicy: "IfNotPresent"
+          args:
+            - "frontend"
           env:
-            - name: "BINARY_NAME"
-              value: "synthbench_frontend"
             - name: "LOG_LEVEL"
               value: "info"
             - name: "DOCKER_COMPOSE_PROJECT_NAME"
@@ -245,8 +245,8 @@ spec:
               cpu: "100m"
           volumeMounts:
             - name: "config"
-              mountPath: "/usr/config.json"
-              subPath: "config.json"
+              mountPath: "/etc/synthbench/topology.json"
+              subPath: "topology.json"
       volumes:
         - name: "config"
           configMap:

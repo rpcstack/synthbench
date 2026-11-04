@@ -1,22 +1,51 @@
 #!/bin/sh
-# Starts the binary named by BINARY_NAME. Services read /usr/config.json (the
-# topology); the load generator reads /usr/gen_config.json and writes CSV
-# traces to /tmp/synthbench-load, which are echoed to stdout when it finishes.
-set -e
-export RUST_LOG="${LOG_LEVEL:-info}"
-bin="/usr/local/bin/${BINARY_NAME:?BINARY_NAME is not set}"
-case "$BINARY_NAME" in
-  *_client_bench)
-    out=/tmp/synthbench-load; mkdir -p "$out"
-    set +e
-    "$bin" --gen-config "${GEN_CONFIG:-/usr/gen_config.json}" --output-path "$out" "$@"
-    rc=$?
-    set -e
+# Select a synthbench binary by role.
+#
+#   frontend                  synthbench_frontend --config $SYNTHBENCH_CONFIG
+#   child                     synthbench_child --config $SYNTHBENCH_CONFIG
+#                             (the service it plays is $SERVICE_ID)
+#   client-bench [args...]    load generator driven by $SYNTHBENCH_GEN_CONFIG
+#   probe [args...]           policy-liveness probe (see synthbench_policy_probe)
+#   validate [file]           validate a topology (default $SYNTHBENCH_CONFIG)
+#   mode                      print the policy mode baked into this image
+set -eu
+
+export RUST_LOG="${RUST_LOG:-${LOG_LEVEL:-info}}"
+role="${1:-}"
+[ $# -gt 0 ] && shift
+
+case "$role" in
+  frontend|child)
+    echo "synthbench: starting $role ($(cat /etc/synthbench-mode)) with $SYNTHBENCH_CONFIG" >&2
+    exec "/usr/local/bin/synthbench_$role" --config "$SYNTHBENCH_CONFIG" "$@"
+    ;;
+  client-bench)
+    out="${SYNTHBENCH_OUTPUT_PATH:-/tmp/synthbench-load-gen}"
+    mkdir -p "$out"
+    status=0
+    /usr/local/bin/synthbench_client_bench --gen-config "$SYNTHBENCH_GEN_CONFIG" --output-path "$out" "$@" || status=$?
+    # Emit the per-request traces so callers can collect them from the logs.
     echo "---BEGIN TRACES---"
-    for f in "$out"/*.csv; do [ -f "$f" ] && { echo "FILE: $(basename "$f")"; cat "$f"; echo "---END FILE---"; }; done
+    for f in "$out"/*.csv; do
+      [ -f "$f" ] || continue
+      echo "FILE: $(basename "$f")"
+      cat "$f"
+      echo "---END FILE---"
+    done
     echo "---END TRACES---"
-    exit $rc ;;
-  *_policy_probe) exec "$bin" "$@" ;;
-  validate_config) exec "$bin" --config /usr/config.json "$@" ;;
-  *) exec "$bin" --config /usr/config.json "$@" ;;
+    exit $status
+    ;;
+  probe)
+    exec /usr/local/bin/synthbench_policy_probe "$@"
+    ;;
+  validate)
+    exec /usr/local/bin/validate_config --config "${1:-$SYNTHBENCH_CONFIG}"
+    ;;
+  mode)
+    cat /etc/synthbench-mode
+    ;;
+  *)
+    echo "usage: synthbench-entrypoint frontend|child|client-bench|probe|validate|mode [args...]" >&2
+    exit 2
+    ;;
 esac

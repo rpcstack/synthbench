@@ -1,3 +1,5 @@
-target
-.git
-deploy
+target/
+out/
+.git/
+.github/
+deploy/

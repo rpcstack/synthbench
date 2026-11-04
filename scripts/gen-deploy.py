@@ -24,12 +24,6 @@ DEFAULT_REGISTRY = "localhost:5001"
 PROJECT = "sb"  # DOCKER_COMPOSE_PROJECT_NAME inside every process
 FRONTEND = "frontend"
 PORT = 8000
-IMAGES = {
-    "frontend": "synthbench-frontend",
-    "child": "synthbench-child",
-    "loadgen": "synthbench-loadgen",
-    "probe": "synthbench-probe",
-}
 
 
 def slug(service_id):
@@ -113,86 +107,78 @@ def _dot(rel):
     return rel if rel.startswith(".") else f"./{rel}"
 
 
-def compose(cfg, topology_rel, loadgen_rel=None, context="."):
+IMAGE = "rpcstack-synthbench"
+MODE_DEFAULT = "baseline"
+CONF_DIR = "/etc/synthbench"  # compose mounts config/<name> here
+LOAD_DIR = "/etc/synthbench-load"  # k8s mounts the loadgen ConfigMap here
+
+
+def compose(cfg, config_rel, context="."):
+    """Compose project: frontend, one service per child replica, client-bench."""
     cpus = cpus_per_replica(cfg)
-    base_env = {
-        "LOG_LEVEL": "${LOG_LEVEL:-info}",
-        "DOCKER_COMPOSE_PROJECT_NAME": PROJECT,
-        "CPUS_PER_REPLICA": str(cpus),
-        "MASA_FANOUT_AWARE": "${MASA_FANOUT_AWARE:-1}",
-    }
-    mounts = [f"{_dot(topology_rel)}:/usr/config.json:ro"]
-    limits = {"deploy": {"resources": {"limits": {"cpus": str(cpus)}}}}
+    image = f"{IMAGE}:${{MODE:-{MODE_DEFAULT}}}"
     reps = replicas_of(cfg)
+    common = {
+        "image": image,
+        "pull_policy": "never",
+        "restart": "unless-stopped",
+        "environment": {
+            "LOG_LEVEL": "${LOG_LEVEL:-info}",
+            "DOCKER_COMPOSE_PROJECT_NAME": PROJECT,
+            "CPUS_PER_REPLICA": str(cpus),
+            "MASA_FANOUT_AWARE": "${MASA_FANOUT_AWARE:-1}",
+        },
+        "volumes": [f"{_dot(config_rel)}:{CONF_DIR}:ro"],
+    }
+    limits = {"deploy": {"resources": {"limits": {"cpus": str(cpus)}}}}
 
     services = {
         FRONTEND: {
-            "image": f"{IMAGES['frontend']}:${{SYNTHBENCH_MODE:-masa}}",
+            **common,
             "build": {
                 "context": context,
-                "target": "frontend",
-                "args": {"MODE": "${SYNTHBENCH_MODE:-masa}"},
+                "args": {
+                    "MODE": f"${{MODE:-{MODE_DEFAULT}}}",
+                    "FEATURES": "${FEATURES:-}",
+                    "BUILD_JOBS": "${BUILD_JOBS:-}",
+                },
             },
-            "environment": {**base_env, "BINARY_NAME": "synthbench_frontend"},
-            "volumes": mounts,
-            "depends_on": [name for _, _, name in reps],
-            "networks": ["synthbench"],
+            "command": ["frontend"],
+            "ports": [f"${{FRONTEND_PORT:-{PORT}}}:{PORT}"],
+            "depends_on": {name: {"condition": "service_started"} for _, _, name in reps},
             **limits,
         }
     }
     for sid, _, name in reps:
         services[name] = {
-            "image": f"{IMAGES['child']}:${{SYNTHBENCH_MODE:-masa}}",
-            "build": {
-                "context": context,
-                "target": "child",
-                "args": {"MODE": "${SYNTHBENCH_MODE:-masa}"},
-            },
-            "environment": {**base_env, "BINARY_NAME": "synthbench_child", "SERVICE_ID": sid},
-            "volumes": mounts,
-            "networks": ["synthbench"],
+            **common,
+            "environment": {**common["environment"], "SERVICE_ID": sid},
+            "command": ["child"],
             **limits,
         }
-    if loadgen_rel:
-        services["loadgen"] = {
-            "image": f"{IMAGES['loadgen']}:${{SYNTHBENCH_MODE:-masa}}",
-            "build": {
-                "context": context,
-                "target": "loadgen",
-                "args": {"MODE": "${SYNTHBENCH_MODE:-masa}"},
-            },
-            "environment": {
-                "LOG_LEVEL": "${LOG_LEVEL:-info}",
-                "BINARY_NAME": "synthbench_client_bench",
-                "GEN_CONFIG": "${GEN_CONFIG:-/usr/loadgen/gen_config.json}",
-            },
-            "volumes": [f"{_dot(loadgen_rel)}:/usr/loadgen:ro"],
-            "depends_on": [FRONTEND],
-            "restart": "no",
-            "networks": ["synthbench"],
-        }
-    services["probe"] = {
-        "image": f"{IMAGES['probe']}:${{SYNTHBENCH_MODE:-masa}}",
-        "build": {
-            "context": context,
-            "target": "probe",
-            "args": {"MODE": "${SYNTHBENCH_MODE:-masa}"},
-        },
-        "profiles": ["tools"],  # only run explicitly: docker compose run probe ...
-        "networks": ["synthbench"],
+    # Load generator: runs once against the frontend and prints CSV traces.
+    # Re-run with: docker compose run --rm client-bench
+    services["client-bench"] = {
+        "image": image,
+        "pull_policy": "never",
+        "restart": "no",
+        "environment": {"LOG_LEVEL": "${LOG_LEVEL:-info}"},
+        "volumes": [f"{_dot(config_rel)}:{CONF_DIR}:ro"],
+        "command": ["client-bench"],
+        "depends_on": {FRONTEND: {"condition": "service_started"}},
     }
-    return {"services": services, "networks": {"synthbench": {}}}
+    return {"services": services}
 
 
 # ----------------------------------------------------------------------------- k8s
 
-def k8s_docs(cfg, registry="", tag="masa", namespace=None):
+def k8s_docs(cfg, registry="", tag=MODE_DEFAULT, namespace=None):
     cpus = cpus_per_replica(cfg)
     prefix = f"{registry.rstrip('/')}/" if registry else ""
     label = {"app.kubernetes.io/part-of": "synthbench"}
-    meta = lambda name, extra=None: {  # noqa: E731
+    meta = lambda name: {  # noqa: E731
         "name": name,
-        "labels": {**label, **(extra or {})},
+        "labels": dict(label),
         **({"namespace": namespace} if namespace else {}),
     }
     cm_name = f"{PROJECT}-config"
@@ -201,14 +187,13 @@ def k8s_docs(cfg, registry="", tag="masa", namespace=None):
             "apiVersion": "v1",
             "kind": "ConfigMap",
             "metadata": meta(cm_name),
-            "data": {"config.json": json.dumps(cfg, indent=2) + "\n"},
+            "data": {"topology.json": json.dumps(cfg, indent=2) + "\n"},
         }
     ]
 
-    def workload(name, binary, image, extra_env, resources):
+    def workload(name, role, extra_env):
         sel = {"app.kubernetes.io/name": name}
         env = [
-            {"name": "BINARY_NAME", "value": binary},
             {"name": "LOG_LEVEL", "value": "info"},
             {"name": "DOCKER_COMPOSE_PROJECT_NAME", "value": PROJECT},
             {"name": "CPUS_PER_REPLICA", "value": str(cpus)},
@@ -226,17 +211,21 @@ def k8s_docs(cfg, registry="", tag="masa", namespace=None):
                     "spec": {
                         "containers": [
                             {
-                                "name": "app",
-                                "image": f"{prefix}{image}:{tag}",
+                                "name": role,
+                                "image": f"{prefix}{IMAGE}:{tag}",
                                 "imagePullPolicy": "IfNotPresent",
+                                "args": [role],
                                 "env": env,
                                 "ports": [{"containerPort": PORT, "name": "grpc"}],
-                                "resources": resources,
+                                "resources": {
+                                    "limits": {"cpu": str(cpus)},
+                                    "requests": {"cpu": "100m"},
+                                },
                                 "volumeMounts": [
                                     {
                                         "name": "config",
-                                        "mountPath": "/usr/config.json",
-                                        "subPath": "config.json",
+                                        "mountPath": f"{CONF_DIR}/topology.json",
+                                        "subPath": "topology.json",
                                     }
                                 ],
                             }
@@ -257,18 +246,17 @@ def k8s_docs(cfg, registry="", tag="masa", namespace=None):
         }
         return [dep, svc]
 
-    res = {"limits": {"cpu": str(cpus)}, "requests": {"cpu": "100m"}}
     for sid, _, name in replicas_of(cfg):
-        docs += workload(name, "synthbench_child", IMAGES["child"], [{"name": "SERVICE_ID", "value": sid}], res)
-    docs += workload(FRONTEND, "synthbench_frontend", IMAGES["frontend"], [], res)
+        docs += workload(name, "child", [{"name": "SERVICE_ID", "value": sid}])
+    docs += workload(FRONTEND, "frontend", [])
     return docs
 
 
-def k8s_loadgen_job(gen_configs, registry="", tag="masa", namespace=None):
+def k8s_loadgen_job(gen_configs, registry="", tag=MODE_DEFAULT, namespace=None):
     """One-shot load generator Job; `gen_configs` maps file name to config dict.
 
-    The Job runs /usr/loadgen/gen_config.json; scripts/k8s-smoke.sh swaps the
-    GEN_CONFIG value to run another file from the same ConfigMap.
+    The Job runs gen_config.json; scripts/smoke-k8s.sh swaps the
+    SYNTHBENCH_GEN_CONFIG path to run another file from the same ConfigMap.
     """
     data = {}
     for name, gc in sorted(gen_configs.items()):
@@ -295,15 +283,18 @@ def k8s_loadgen_job(gen_configs, registry="", tag="masa", namespace=None):
                         "restartPolicy": "Never",
                         "containers": [
                             {
-                                "name": "loadgen",
-                                "image": f"{prefix}{IMAGES['loadgen']}:{tag}",
+                                "name": "client-bench",
+                                "image": f"{prefix}{IMAGE}:{tag}",
                                 "imagePullPolicy": "IfNotPresent",
+                                "args": ["client-bench"],
                                 "env": [
-                                    {"name": "BINARY_NAME", "value": "synthbench_client_bench"},
                                     {"name": "LOG_LEVEL", "value": "info"},
-                                    {"name": "GEN_CONFIG", "value": "/usr/loadgen/gen_config.json"},
+                                    {
+                                        "name": "SYNTHBENCH_GEN_CONFIG",
+                                        "value": f"{LOAD_DIR}/gen_config.json",
+                                    },
                                 ],
-                                "volumeMounts": [{"name": "gen", "mountPath": "/usr/loadgen"}],
+                                "volumeMounts": [{"name": "gen", "mountPath": LOAD_DIR}],
                             }
                         ],
                         "volumes": [
@@ -314,6 +305,20 @@ def k8s_loadgen_job(gen_configs, registry="", tag="masa", namespace=None):
             },
         },
     ]
+
+
+def loadgen_configs(config_dir):
+    """gen_config.json plus smoke/*.json; k8s ConfigMap keys cannot contain '/'."""
+    out = {}
+    with open(os.path.join(config_dir, "gen_config.json")) as f:
+        out["gen_config.json"] = json.load(f)
+    smoke = os.path.join(config_dir, "smoke")
+    if os.path.isdir(smoke):
+        for fn in sorted(os.listdir(smoke)):
+            if fn.endswith(".json"):
+                with open(os.path.join(smoke, fn)) as f:
+                    out[f"smoke-{fn}"] = json.load(f)
+    return out
 
 
 def to_multidoc(docs):
@@ -333,43 +338,32 @@ def probe_targets(cfg):
 
 
 def render(args):
-    """{filename: content} for one topology."""
+    """{filename: content} for one topology (config/<name>/topology.json)."""
+    config_dir = os.path.dirname(os.path.abspath(args.topology))
     cfg = load_topology(args.topology)
     out = os.path.abspath(args.out)
-    rel = lambda p: os.path.relpath(os.path.abspath(p), out)  # noqa: E731
-    comp = compose(
-        cfg,
-        rel(args.topology),
-        rel(args.loadgen_dir) if args.loadgen_dir else None,
-        os.path.relpath(REPO_ROOT, out),
-    )
+    comp = compose(cfg, os.path.relpath(config_dir, out), os.path.relpath(REPO_ROOT, out))
     hdr = "# Generated by scripts/gen-deploy.py. Do not edit.\n"
-    files = {
+    return {
         "docker-compose.yaml": hdr + to_yaml(comp),
         "k8s.yaml": hdr + to_multidoc(k8s_docs(cfg, args.registry, args.tag)),
+        "k8s-loadgen.yaml": hdr
+        + to_multidoc(k8s_loadgen_job(loadgen_configs(config_dir), args.registry, args.tag)),
     }
-    if args.loadgen_dir:
-        gens = {}
-        for fn in sorted(os.listdir(args.loadgen_dir)):
-            if fn.startswith("gen_") and fn.endswith(".json"):
-                with open(os.path.join(args.loadgen_dir, fn)) as g:
-                    gens[fn] = json.load(g)
-        if "gen_config.json" not in gens:
-            raise SystemExit(f"{args.loadgen_dir}/gen_config.json is required")
-        job = k8s_loadgen_job(gens, args.registry, args.tag)
-        files["k8s-loadgen.yaml"] = hdr + to_multidoc(job)
-    return files
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("topology")
-    ap.add_argument("--loadgen-dir", help="directory of gen_*.json load generator configs (adds the loadgen service/job)")
-    ap.add_argument("--probe-args", action="store_true", help="print --target arguments for synthbench_policy_probe and exit")
+    ap.add_argument("topology", help="config/<name>/topology.json")
     ap.add_argument("--out", required=True, help="output directory")
-    ap.add_argument("--registry", default=DEFAULT_REGISTRY, help="image registry prefix for k8s, e.g. localhost:5001")
-    ap.add_argument("--tag", default="masa", help="image tag for k8s")
+    ap.add_argument("--registry", default=DEFAULT_REGISTRY, help="image registry prefix for k8s")
+    ap.add_argument("--tag", default=MODE_DEFAULT, help="image tag for k8s")
     ap.add_argument("--check", action="store_true", help="fail if existing outputs differ")
+    ap.add_argument(
+        "--probe-args",
+        action="store_true",
+        help="print --target arguments for synthbench_policy_probe and exit",
+    )
     args = ap.parse_args(argv)
 
     if args.probe_args:
@@ -383,7 +377,10 @@ def main(argv=None):
             if not os.path.exists(path) or open(path).read() != content:
                 stale.append(path)
         if stale:
-            print("stale generated files (rerun scripts/gen-all.sh): " + ", ".join(stale), file=sys.stderr)
+            print(
+                "stale generated files (rerun scripts/gen-all.sh): " + ", ".join(stale),
+                file=sys.stderr,
+            )
             return 1
         return 0
     os.makedirs(args.out, exist_ok=True)

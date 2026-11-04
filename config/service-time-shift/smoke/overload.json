@@ -1,0 +1,22 @@
+{
+  "Repeats": 1,
+  "Apis": [
+    "a",
+    "b"
+  ],
+  "Slos": [
+    50000,
+    50000
+  ],
+  "Rps": [
+    3000
+  ],
+  "Gap": "exp",
+  "WarmupSecs": 2,
+  "DurationSecs": 10,
+  "Addr": "http://frontend:8000",
+  "Timeouts_ms": [
+    2000,
+    2000
+  ]
+}
