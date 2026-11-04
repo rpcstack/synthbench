@@ -32,7 +32,7 @@ cleanup() {
     { echo "=== $p"; "${K[@]}" logs "$p" --all-containers 2>&1 || true; } >> "$OUT/pods.log"
   done
   if [ "${KEEP_UP:-0}" != 1 ]; then
-    kubectl --context "kind-${CLUSTER}" delete namespace "$NAMESPACE" --wait=false > /dev/null 2>&1 || true
+    kubectl --context "kind-${CLUSTER}" delete namespace "$NAMESPACE" --wait=true --timeout=180s > /dev/null 2>&1 || true
   fi
   [ $status -eq 0 ] && echo "SMOKE PASS (k8s, $MODE)" || echo "SMOKE FAIL (k8s, $MODE), logs in $OUT"
   exit $status
