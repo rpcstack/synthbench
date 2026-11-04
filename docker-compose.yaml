@@ -1,0 +1,6 @@
+# Default topology (config/ci). `docker compose up --build` builds all images
+# locally and runs the topology plus a one-shot load generator.
+#   SYNTHBENCH_MODE=baseline|masa   (default masa)
+# Other topologies: docker compose -f deploy/<name>/docker-compose.yaml up --build
+include:
+  - deploy/ci/docker-compose.yaml
