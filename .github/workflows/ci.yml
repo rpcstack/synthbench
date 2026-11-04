@@ -1,0 +1,45 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+      - run: ./scripts/check.sh
+      - run: ./scripts/test.sh
+
+  compose-smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [baseline, masa]
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/compose-smoke.sh ${{ matrix.mode }}
+
+  k8s-smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [baseline, masa]
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/kind-up.sh
+      - run: scripts/k8s-smoke.sh ${{ matrix.mode }}
+      - if: always()
+        run: scripts/kind-down.sh
