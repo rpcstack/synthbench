@@ -24,5 +24,7 @@ fi
 kubectl --context "$CTX" create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl --context "$CTX" apply -f -
 # Checked-in manifests reference localhost:5001/rpcstack-synthbench:baseline; point them at this run.
 scripts/lib/render-k8s.sh "deploy/${TOPOLOGY}/k8s.yaml" | kubectl --context "$CTX" -n "$NAMESPACE" apply -f -
-kubectl --context "$CTX" -n "$NAMESPACE" rollout status deployment --timeout=300s --all
+for d in $(kubectl --context "$CTX" -n "$NAMESPACE" get deployment -o name); do
+  kubectl --context "$CTX" -n "$NAMESPACE" rollout status "$d" --timeout=300s
+done
 echo "deployed ${TOPOLOGY} (${MODE}); run scripts/smoke-k8s.sh ${MODE}"
