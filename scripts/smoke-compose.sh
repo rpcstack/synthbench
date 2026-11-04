@@ -70,6 +70,7 @@ if [ "$MODE" = baseline ]; then
     echo "FAIL: the masa policy-live check passed in baseline mode"
     exit 1
   fi
+  grep -q "PROBE FAIL" "$OUT/probe-expect-masa.txt" || { cat "$OUT/probe-expect-masa.txt"; echo "FAIL: negative probe did not report PROBE FAIL" >&2; exit 1; }
   tail -3 "$OUT/probe-expect-masa.txt"
   echo "policy-live check failed in baseline, as required"
 fi
