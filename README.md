@@ -23,6 +23,19 @@ Scheduling operates between future polls; there is no forced preemption.
 Everything is built locally; no images are published. Compose needs Docker with
 Compose v2.20+; Kubernetes needs `kind` and `kubectl`.
 
+### Deploy in one command
+
+Layout: generated per-topology manifests in `deploy/<topology>/` (see
+"Deployments are generated from the topology"); no kustomize overlays.
+
+```sh
+MODE=masa docker compose up --build                                 # Compose, config/ci topology (omit MODE for baseline)
+scripts/kind-up.sh && MODE=masa scripts/k8s-deploy.sh ci            # Kubernetes (MODE=baseline for baseline)
+```
+
+Other topologies: `docker compose -f deploy/<topology>/docker-compose.yaml up --build`
+and `MODE=masa scripts/k8s-deploy.sh <topology>`.
+
 ### Docker Compose
 
 ```sh
