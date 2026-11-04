@@ -124,11 +124,23 @@ services:
     environment:
       LOG_LEVEL: "${LOG_LEVEL:-info}"
       BINARY_NAME: "synthbench_client_bench"
+      GEN_CONFIG: "${GEN_CONFIG:-/usr/loadgen/gen_config.json}"
     volumes:
-      - "../../config/ci/gen_config.json:/usr/gen_config.json:ro"
+      - "../../config/ci:/usr/loadgen:ro"
     depends_on:
       - "frontend"
     restart: "no"
+    networks:
+      - "synthbench"
+  probe:
+    image: "synthbench-probe:${SYNTHBENCH_MODE:-masa}"
+    build:
+      context: "../.."
+      target: "probe"
+      args:
+        MODE: "${SYNTHBENCH_MODE:-masa}"
+    profiles:
+      - "tools"
     networks:
       - "synthbench"
 networks:

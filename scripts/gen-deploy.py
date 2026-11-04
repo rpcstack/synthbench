@@ -28,6 +28,7 @@ IMAGES = {
     "frontend": "synthbench-frontend",
     "child": "synthbench-child",
     "loadgen": "synthbench-loadgen",
+    "probe": "synthbench-probe",
 }
 
 
@@ -112,7 +113,7 @@ def _dot(rel):
     return rel if rel.startswith(".") else f"./{rel}"
 
 
-def compose(cfg, topology_rel, gen_config_rel=None, context="."):
+def compose(cfg, topology_rel, loadgen_rel=None, context="."):
     cpus = cpus_per_replica(cfg)
     base_env = {
         "LOG_LEVEL": "${LOG_LEVEL:-info}",
@@ -152,7 +153,7 @@ def compose(cfg, topology_rel, gen_config_rel=None, context="."):
             "networks": ["synthbench"],
             **limits,
         }
-    if gen_config_rel:
+    if loadgen_rel:
         services["loadgen"] = {
             "image": f"{IMAGES['loadgen']}:${{SYNTHBENCH_MODE:-masa}}",
             "build": {
@@ -163,12 +164,23 @@ def compose(cfg, topology_rel, gen_config_rel=None, context="."):
             "environment": {
                 "LOG_LEVEL": "${LOG_LEVEL:-info}",
                 "BINARY_NAME": "synthbench_client_bench",
+                "GEN_CONFIG": "${GEN_CONFIG:-/usr/loadgen/gen_config.json}",
             },
-            "volumes": [f"{_dot(gen_config_rel)}:/usr/gen_config.json:ro"],
+            "volumes": [f"{_dot(loadgen_rel)}:/usr/loadgen:ro"],
             "depends_on": [FRONTEND],
             "restart": "no",
             "networks": ["synthbench"],
         }
+    services["probe"] = {
+        "image": f"{IMAGES['probe']}:${{SYNTHBENCH_MODE:-masa}}",
+        "build": {
+            "context": context,
+            "target": "probe",
+            "args": {"MODE": "${SYNTHBENCH_MODE:-masa}"},
+        },
+        "profiles": ["tools"],  # only run explicitly: docker compose run probe ...
+        "networks": ["synthbench"],
+    }
     return {"services": services, "networks": {"synthbench": {}}}
 
 
@@ -252,10 +264,17 @@ def k8s_docs(cfg, registry="", tag="masa", namespace=None):
     return docs
 
 
-def k8s_loadgen_job(gen_config, registry="", tag="masa", namespace=None):
-    """One-shot load generator Job. gen_config Addr is rewritten to the frontend Service."""
-    gc = dict(gen_config)
-    gc["Addr"] = f"http://{FRONTEND}:{PORT}"
+def k8s_loadgen_job(gen_configs, registry="", tag="masa", namespace=None):
+    """One-shot load generator Job; `gen_configs` maps file name to config dict.
+
+    The Job runs /usr/loadgen/gen_config.json; scripts/k8s-smoke.sh swaps the
+    GEN_CONFIG value to run another file from the same ConfigMap.
+    """
+    data = {}
+    for name, gc in sorted(gen_configs.items()):
+        gc = dict(gc)
+        gc["Addr"] = f"http://{FRONTEND}:{PORT}"
+        data[name] = json.dumps(gc, indent=2) + "\n"
     prefix = f"{registry.rstrip('/')}/" if registry else ""
     meta_ns = {"namespace": namespace} if namespace else {}
     return [
@@ -263,7 +282,7 @@ def k8s_loadgen_job(gen_config, registry="", tag="masa", namespace=None):
             "apiVersion": "v1",
             "kind": "ConfigMap",
             "metadata": {"name": f"{PROJECT}-loadgen-config", **meta_ns},
-            "data": {"gen_config.json": json.dumps(gc, indent=2) + "\n"},
+            "data": data,
         },
         {
             "apiVersion": "batch/v1",
@@ -282,14 +301,9 @@ def k8s_loadgen_job(gen_config, registry="", tag="masa", namespace=None):
                                 "env": [
                                     {"name": "BINARY_NAME", "value": "synthbench_client_bench"},
                                     {"name": "LOG_LEVEL", "value": "info"},
+                                    {"name": "GEN_CONFIG", "value": "/usr/loadgen/gen_config.json"},
                                 ],
-                                "volumeMounts": [
-                                    {
-                                        "name": "gen",
-                                        "mountPath": "/usr/gen_config.json",
-                                        "subPath": "gen_config.json",
-                                    }
-                                ],
+                                "volumeMounts": [{"name": "gen", "mountPath": "/usr/loadgen"}],
                             }
                         ],
                         "volumes": [
@@ -306,6 +320,18 @@ def to_multidoc(docs):
     return "---\n".join(to_yaml(d) for d in docs)
 
 
+def probe_targets(cfg):
+    """`--target service::method=addr` for the first replica of every service."""
+    out = []
+    for s in cfg["call_graph"]["services"]:
+        if s.get("methods"):
+            out.append(
+                f"--target {s['id']}::{s['methods'][0]['name']}="
+                f"http://{replica_name(s['id'], 1)}:{PORT}"
+            )
+    return out
+
+
 def render(args):
     """{filename: content} for one topology."""
     cfg = load_topology(args.topology)
@@ -314,7 +340,7 @@ def render(args):
     comp = compose(
         cfg,
         rel(args.topology),
-        rel(args.gen_config) if args.gen_config else None,
+        rel(args.loadgen_dir) if args.loadgen_dir else None,
         os.path.relpath(REPO_ROOT, out),
     )
     hdr = "# Generated by scripts/gen-deploy.py. Do not edit.\n"
@@ -322,9 +348,15 @@ def render(args):
         "docker-compose.yaml": hdr + to_yaml(comp),
         "k8s.yaml": hdr + to_multidoc(k8s_docs(cfg, args.registry, args.tag)),
     }
-    if args.gen_config:
-        with open(args.gen_config) as g:
-            job = k8s_loadgen_job(json.load(g), args.registry, args.tag)
+    if args.loadgen_dir:
+        gens = {}
+        for fn in sorted(os.listdir(args.loadgen_dir)):
+            if fn.startswith("gen_") and fn.endswith(".json"):
+                with open(os.path.join(args.loadgen_dir, fn)) as g:
+                    gens[fn] = json.load(g)
+        if "gen_config.json" not in gens:
+            raise SystemExit(f"{args.loadgen_dir}/gen_config.json is required")
+        job = k8s_loadgen_job(gens, args.registry, args.tag)
         files["k8s-loadgen.yaml"] = hdr + to_multidoc(job)
     return files
 
@@ -332,13 +364,17 @@ def render(args):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("topology")
-    ap.add_argument("--gen-config", help="loadgen config JSON (adds the loadgen service/job)")
+    ap.add_argument("--loadgen-dir", help="directory of gen_*.json load generator configs (adds the loadgen service/job)")
+    ap.add_argument("--probe-args", action="store_true", help="print --target arguments for synthbench_policy_probe and exit")
     ap.add_argument("--out", required=True, help="output directory")
     ap.add_argument("--registry", default=DEFAULT_REGISTRY, help="image registry prefix for k8s, e.g. localhost:5001")
     ap.add_argument("--tag", default="masa", help="image tag for k8s")
     ap.add_argument("--check", action="store_true", help="fail if existing outputs differ")
     args = ap.parse_args(argv)
 
+    if args.probe_args:
+        print(" ".join(probe_targets(load_topology(args.topology))))
+        return 0
     files = render(args)
     if args.check:
         stale = []

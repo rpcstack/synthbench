@@ -9,7 +9,7 @@ case "$BINARY_NAME" in
   *_client_bench)
     out=/tmp/synthbench-load; mkdir -p "$out"
     set +e
-    "$bin" --gen-config /usr/gen_config.json --output-path "$out" "$@"
+    "$bin" --gen-config "${GEN_CONFIG:-/usr/gen_config.json}" --output-path "$out" "$@"
     rc=$?
     set -e
     echo "---BEGIN TRACES---"

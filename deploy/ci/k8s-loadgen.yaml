@@ -5,6 +5,8 @@ metadata:
   name: "sb-loadgen-config"
 data:
   gen_config.json: "{\n  \"Repeats\": 1,\n  \"Apis\": [\n    \"a\"\n  ],\n  \"Slos\": [\n    150000\n  ],\n  \"Rps\": [\n    200\n  ],\n  \"Gap\": \"const\",\n  \"WarmupSecs\": 0,\n  \"DurationSecs\": 20,\n  \"Addr\": \"http://frontend:8000\",\n  \"Timeouts_ms\": [\n    1000\n  ]\n}\n"
+  gen_overload.json: "{\n  \"Repeats\": 1,\n  \"Apis\": [\n    \"a\"\n  ],\n  \"Slos\": [\n    150000\n  ],\n  \"Rps\": [\n    3000\n  ],\n  \"Gap\": \"const\",\n  \"WarmupSecs\": 0,\n  \"DurationSecs\": 10,\n  \"Addr\": \"http://frontend:8000\",\n  \"Timeouts_ms\": [\n    1000\n  ]\n}\n"
+  gen_smoke.json: "{\n  \"Repeats\": 1,\n  \"Apis\": [\n    \"a\"\n  ],\n  \"Slos\": [\n    150000\n  ],\n  \"Rps\": [\n    100\n  ],\n  \"Gap\": \"const\",\n  \"WarmupSecs\": 2,\n  \"DurationSecs\": 10,\n  \"Addr\": \"http://frontend:8000\",\n  \"Timeouts_ms\": [\n    1000\n  ]\n}\n"
 ---
 apiVersion: "batch/v1"
 kind: "Job"
@@ -24,10 +26,11 @@ spec:
               value: "synthbench_client_bench"
             - name: "LOG_LEVEL"
               value: "info"
+            - name: "GEN_CONFIG"
+              value: "/usr/loadgen/gen_config.json"
           volumeMounts:
             - name: "gen"
-              mountPath: "/usr/gen_config.json"
-              subPath: "gen_config.json"
+              mountPath: "/usr/loadgen"
       volumes:
         - name: "gen"
           configMap:

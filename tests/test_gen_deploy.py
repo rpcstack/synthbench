@@ -40,12 +40,12 @@ class GenDeploy(unittest.TestCase):
         )
 
     def test_compose_one_service_per_replica(self):
-        c = gd.compose(topo(Front_End=1, leaf=2), "config/t.json", "config/g.json")
+        c = gd.compose(topo(Front_End=1, leaf=2), "config/t.json", "config/lg")
         s = c["services"]
         self.assertEqual(
             set(s),
             {"frontend", "sb-local-front-end-service-1", "sb-local-leaf-service-1",
-             "sb-local-leaf-service-2", "loadgen"},
+             "sb-local-leaf-service-2", "loadgen", "probe"},
         )
         self.assertEqual(s["sb-local-leaf-service-2"]["environment"]["SERVICE_ID"], "leaf")
         self.assertEqual(s["frontend"]["environment"]["DOCKER_COMPOSE_PROJECT_NAME"], "sb")
@@ -68,9 +68,14 @@ class GenDeploy(unittest.TestCase):
         self.assertEqual(json.loads(cm["data"]["config.json"])["call_graph"]["services"][1]["id"], "leaf")
 
     def test_loadgen_addr_rewritten_for_k8s(self):
-        job = gd.k8s_loadgen_job({"Addr": "http://x:1", "Rps": [1]})
+        job = gd.k8s_loadgen_job({"gen_config.json": {"Addr": "http://x:1", "Rps": [1]}})
         cfg = json.loads(job[0]["data"]["gen_config.json"])
         self.assertEqual(cfg["Addr"], "http://frontend:8000")
+
+    def test_probe_targets_use_first_replica_and_first_method(self):
+        cfg = topo(Front_End=1, leaf=2)
+        cfg["call_graph"]["services"][1]["methods"] = [{"name": "run"}, {"name": "x"}]
+        self.assertEqual(gd.probe_targets(cfg), ["--target leaf::run=http://sb-local-leaf-service-1:8000"])
 
     def test_collision_rejected(self):
         with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
@@ -87,7 +92,7 @@ class GenDeploy(unittest.TestCase):
         for name in sorted(os.listdir(os.path.join(ROOT, "config"))):
             subprocess.check_call([
                 sys.executable, os.path.join(ROOT, "scripts/gen-deploy.py"),
-                f"config/{name}/topology.json", "--gen-config", f"config/{name}/gen_config.json",
+                f"config/{name}/topology.json", "--loadgen-dir", f"config/{name}",
                 "--out", f"deploy/{name}", "--registry", gd.DEFAULT_REGISTRY, "--check",
             ], cwd=ROOT)
 
