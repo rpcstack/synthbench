@@ -16,7 +16,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     case "$MODE" in baseline|masa) ;; *) echo "MODE must be baseline or masa" >&2; exit 1;; esac \
     && cargo build --locked --release -p synthbench --bins --features "$MODE" \
     && mkdir -p /out && cp target/release/synthbench_frontend target/release/synthbench_child \
-       target/release/synthbench_client_bench target/release/validate_config /out/
+       target/release/synthbench_client_bench target/release/synthbench_policy_probe \
+       target/release/validate_config /out/
 
 FROM debian:bookworm-slim AS runtime-base
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libssl3 \
@@ -42,3 +43,7 @@ ENV BINARY_NAME=synthbench_client_bench
 FROM runtime-base AS validate
 COPY --from=builder /out/validate_config /usr/local/bin/
 ENV BINARY_NAME=validate_config
+
+FROM runtime-base AS probe
+COPY --from=builder /out/synthbench_policy_probe /usr/local/bin/
+ENV BINARY_NAME=synthbench_policy_probe

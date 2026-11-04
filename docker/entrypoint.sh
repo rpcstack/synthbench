@@ -16,6 +16,7 @@ case "$BINARY_NAME" in
     for f in "$out"/*.csv; do [ -f "$f" ] && { echo "FILE: $(basename "$f")"; cat "$f"; echo "---END FILE---"; }; done
     echo "---END TRACES---"
     exit $rc ;;
+  *_policy_probe) exec "$bin" "$@" ;;
   validate_config) exec "$bin" --config /usr/config.json "$@" ;;
   *) exec "$bin" --config /usr/config.json "$@" ;;
 esac

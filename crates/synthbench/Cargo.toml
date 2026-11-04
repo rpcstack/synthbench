@@ -18,6 +18,10 @@ name = "synthbench_child"
 path = "src/child/main.rs"
 
 [[bin]]
+name = "synthbench_policy_probe"
+path = "src/probe/main.rs"
+
+[[bin]]
 name = "validate_config"
 path = "src/bin/validate_config.rs"
 
