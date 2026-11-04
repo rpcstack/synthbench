@@ -29,7 +29,7 @@ jobs:
         mode: [baseline, masa]
     steps:
       - uses: actions/checkout@v4
-      - run: scripts/compose-smoke.sh ${{ matrix.mode }}
+      - run: scripts/smoke-compose.sh ${{ matrix.mode }}
 
   k8s-smoke:
     runs-on: ubuntu-latest
@@ -40,6 +40,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: scripts/kind-up.sh
-      - run: scripts/k8s-smoke.sh ${{ matrix.mode }}
+      - run: scripts/smoke-k8s.sh ${{ matrix.mode }}
       - if: always()
         run: scripts/kind-down.sh

@@ -38,15 +38,15 @@ traces to stdout (`---BEGIN TRACES---`).
 ```sh
 scripts/kind-up.sh                       # kind cluster + local registry (REG_PORT=5001)
 MODE=masa scripts/k8s-deploy.sh ci       # build, push, apply, wait for rollout
-scripts/k8s-smoke.sh masa                # deploys, then asserts (see Smoke tests)
+scripts/smoke-k8s.sh masa                # deploys, then asserts (see Smoke tests)
 scripts/kind-down.sh
 ```
 
 ### Smoke tests
 
 ```sh
-scripts/compose-smoke.sh masa      # or baseline
-scripts/k8s-smoke.sh masa          # needs scripts/kind-up.sh first
+scripts/smoke-compose.sh masa      # or baseline
+scripts/smoke-k8s.sh masa          # needs scripts/kind-up.sh first
 ```
 
 Both assert, using real RPCs through the generated stubs:
